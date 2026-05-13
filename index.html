@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PixelReal — AI Photo Humanizer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet"/>
+<style>
+  /* ======= CSS VARIABLES ======= */
+  :root {
+    --bg: #0a0a0f;
+    --bg2: #111118;
+    --bg3: #1a1a24;
+    --surface: #1e1e2e;
+    --surface2: #252535;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.14);
+    --text: #f0f0f8;
+    --text2: #9898b8;
+    --text3: #5a5a7a;
+    --accent: #7c6aff;
+    --accent2: #a78bfa;
+    --accent3: #c4b5fd;
+    --green: #34d399;
+    --orange: #fb923c;
+    --pink: #f472b6;
+    --red: #f87171;
+    --glow: rgba(124,106,255,0.25);
+    --radius: 14px;
+    --radius-sm: 8px;
+    --shadow: 0 4px 32px rgba(0,0,0,0.4);
+    --transition: 0.2s cubic-bezier(0.4,0,0.2,1);
+  }
+  [data-theme="light"] {
+    --bg: #f4f4f8;
+    --bg2: #ececf3;
+    --bg3: #e4e4ef;
+    --surface: #ffffff;
+    --surface2: #f8f8fc;
+    --border: rgba(0,0,0,0.08);
+    --border2: rgba(0,0,0,0.14);
+    --text: #12121e;
+    --text2: #5a5a7a;
+    --text3: #9898b8;
+    --glow: rgba(124,106,255,0.15);
+    --shadow: 0 4px 32px rgba(0,0,0,0.12);
+  }
+
+  /* ======= RESET & BASE ======= */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    transition: background var(--transition), color var(--transition);
+    overflow-x: hidden;
+  }
+  input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 4px; border-radius: 2px; background: var(--border2); outline: none; cursor: pointer; transition: background var(--transition); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); border: 2px solid var(--bg); box-shadow: 0 0 0 3px var(--glow); cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; }
+  input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); box-shadow: 0 0 0 5px var(--glow); }
+  input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: var(--accent); border: 2px solid var(--bg); cursor: pointer; }
+  button { font-family: inherit; cursor: pointer; border: none; outline: none; }
+  img { display: block; }
+
+  /* ======= NOISE OVERLAY ======= */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 999; opacity: 0.4;
+  }
+
+  /* ======= NAVBAR ======= */
+  nav {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 28px; height: 64px;
+    background: rgba(10,10,15,0.85);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+    transition: background var(--transition);
+  }
+  [data-theme="light"] nav { background: rgba(244,244,248,0.85); }
+  .nav-logo {
+    display: flex; align-items: center; gap: 10px;
+    font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.25rem;
+    letter-spacing: -0.02em; color: var(--text);
+  }
+  .nav-logo-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{box-shadow:0 0 8px var(--accent)} 50%{box-shadow:0 0 20px var(--accent2)} }
+  .nav-badge { font-size: 0.65rem; font-weight: 600; background: linear-gradient(135deg, var(--accent), var(--pink)); color: #fff; padding: 2px 8px; border-radius: 20px; letter-spacing: 0.05em; }
+  .nav-right { display: flex; align-items: center; gap: 12px; }
+  .theme-btn {
+    width: 44px; height: 24px; border-radius: 12px;
+    background: var(--surface2); border: 1px solid var(--border2);
+    position: relative; transition: background var(--transition);
+    cursor: pointer;
+  }
+  .theme-btn::after {
+    content: '';
+    position: absolute; top: 3px; left: 3px;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--accent);
+    transition: transform 0.3s cubic-bezier(0.4,0,0.2,1), background 0.3s;
+  }
+  [data-theme="light"] .theme-btn::after { transform: translateX(20px); background: var(--orange); }
+  .theme-label { font-size: 0.8rem; color: var(--text2); font-weight: 500; }
+  .nav-link {
+    font-size: 0.82rem; color: var(--text2); font-weight: 500;
+    text-decoration: none; padding: 6px 12px; border-radius: var(--radius-sm);
+    transition: color var(--transition), background var(--transition);
+  }
+  .nav-link:hover { color: var(--text); background: var(--surface); }
+
+  /* ======= HERO ======= */
+  .hero {
+    text-align: center; padding: 60px 20px 40px;
+    background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(124,106,255,0.12), transparent);
+  }
+  .hero-eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 0.75rem; font-weight: 600; letter-spacing: 0.12em;
+    color: var(--accent2); text-transform: uppercase;
+    background: rgba(124,106,255,0.1); border: 1px solid rgba(124,106,255,0.2);
+    padding: 5px 14px; border-radius: 20px; margin-bottom: 20px;
+  }
+  .hero h1 {
+    font-family: 'Syne', sans-serif; font-weight: 800;
+    font-size: clamp(2rem, 5vw, 3.5rem); line-height: 1.1;
+    letter-spacing: -0.03em; color: var(--text);
+    margin-bottom: 16px;
+  }
+  .hero h1 span {
+    background: linear-gradient(135deg, var(--accent2), var(--pink));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .hero p { font-size: 1.05rem; color: var(--text2); max-width: 520px; margin: 0 auto; line-height: 1.7; }
+
+  /* ======= MAIN LAYOUT ======= */
+  .app-container {
+    max-width: 1280px; margin: 0 auto; padding: 0 20px 60px;
+    display: grid; grid-template-columns: 340px 1fr;
+    gap: 20px; align-items: start;
+  }
+  @media(max-width:900px) { .app-container { grid-template-columns: 1fr; } }
+
+  /* ======= PANEL ======= */
+  .panel {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden;
+    transition: background var(--transition), border var(--transition);
+    box-shadow: var(--shadow);
+  }
+  .panel-header {
+    padding: 18px 20px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .panel-title {
+    font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.9rem;
+    letter-spacing: 0.04em; text-transform: uppercase; color: var(--text2);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .panel-title svg { color: var(--accent); }
+  .panel-body { padding: 20px; }
+
+  /* ======= UPLOAD ZONE ======= */
+  .upload-zone {
+    border: 2px dashed var(--border2); border-radius: var(--radius);
+    padding: 40px 20px; text-align: center; cursor: pointer;
+    transition: all 0.2s; background: var(--bg3);
+    position: relative; overflow: hidden;
+  }
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--accent); background: rgba(124,106,255,0.06);
+  }
+  .upload-zone.dragover { transform: scale(1.01); }
+  .upload-icon { width: 52px; height: 52px; margin: 0 auto 14px; background: linear-gradient(135deg, rgba(124,106,255,0.2), rgba(244,114,182,0.2)); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .upload-zone h3 { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1rem; margin-bottom: 6px; }
+  .upload-zone p { font-size: 0.82rem; color: var(--text2); }
+  .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+  /* ======= FILTER PRESETS ======= */
+  .presets-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+  }
+  .preset-btn {
+    padding: 10px 6px; border-radius: var(--radius-sm);
+    background: var(--bg3); border: 1.5px solid var(--border);
+    color: var(--text2); font-size: 0.72rem; font-weight: 600;
+    letter-spacing: 0.04em; text-transform: uppercase;
+    transition: all 0.2s; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .preset-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(124,106,255,0.08); }
+  .preset-btn.active { border-color: var(--accent); background: rgba(124,106,255,0.15); color: var(--accent2); }
+  .preset-icon { font-size: 1.2rem; }
+
+  /* ======= SLIDERS ======= */
+  .slider-group { margin-bottom: 18px; }
+  .slider-label {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 0.8rem; font-weight: 500; color: var(--text2);
+  }
+  .slider-val {
+    font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.8rem;
+    color: var(--accent2); min-width: 32px; text-align: right;
+  }
+  .slider-icon { width: 18px; height: 18px; opacity: 0.7; }
+
+  /* ======= TABS ======= */
+  .tabs { display: flex; gap: 4px; padding: 4px; background: var(--bg3); border-radius: var(--radius-sm); margin-bottom: 16px; }
+  .tab-btn {
+    flex: 1; padding: 7px 10px; border-radius: 6px;
+    font-size: 0.78rem; font-weight: 600; color: var(--text2);
+    background: transparent; transition: all 0.2s;
+  }
+  .tab-btn.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 6px rgba(0,0,0,0.2); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* ======= CANVAS AREA ======= */
+  .canvas-panel { position: sticky; top: 84px; }
+  .canvas-wrap {
+    background: var(--bg3); border-radius: var(--radius);
+    overflow: hidden; position: relative;
+    min-height: 400px; display: flex; align-items: center; justify-content: center;
+  }
+  .canvas-placeholder {
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    color: var(--text3); font-size: 0.9rem;
+  }
+  .canvas-placeholder svg { opacity: 0.3; }
+  canvas {
+    max-width: 100%; max-height: 70vh;
+    display: block; border-radius: 4px;
+  }
+  .canvas-overlay-info {
+    position: absolute; bottom: 12px; left: 12px;
+    background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+    padding: 5px 10px; border-radius: var(--radius-sm);
+    font-size: 0.72rem; color: rgba(255,255,255,0.7);
+    display: none;
+  }
+
+  /* ======= ACTION BTNS ======= */
+  .action-bar { display: flex; gap: 10px; padding: 16px 20px; border-top: 1px solid var(--border); }
+  .btn-primary {
+    flex: 1; padding: 12px 20px; border-radius: var(--radius-sm);
+    background: linear-gradient(135deg, var(--accent), #9333ea);
+    color: #fff; font-weight: 600; font-size: 0.88rem;
+    transition: all 0.2s; position: relative; overflow: hidden;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .btn-primary::before {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent);
+    opacity: 0; transition: opacity 0.2s;
+  }
+  .btn-primary:hover::before { opacity: 1; }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(124,106,255,0.4); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-secondary {
+    padding: 12px 16px; border-radius: var(--radius-sm);
+    background: var(--bg3); border: 1px solid var(--border2);
+    color: var(--text2); font-weight: 600; font-size: 0.88rem;
+    transition: all 0.2s; display: flex; align-items: center; gap: 6px;
+  }
+  .btn-secondary:hover { color: var(--text); border-color: var(--border2); background: var(--surface2); }
+
+  /* ======= COMPARE TOGGLE ======= */
+  .compare-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .toggle-switch { position: relative; display: inline-block; width: 40px; height: 22px; }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider { position: absolute; cursor: pointer; inset: 0; background: var(--bg3); border: 1px solid var(--border2); border-radius: 11px; transition: 0.2s; }
+  .toggle-slider::before { content: ''; position: absolute; height: 14px; width: 14px; left: 3px; bottom: 3px; background: var(--text3); border-radius: 50%; transition: 0.2s; }
+  input:checked + .toggle-slider { background: var(--accent); border-color: var(--accent); }
+  input:checked + .toggle-slider::before { transform: translateX(18px); background: #fff; }
+
+  /* ======= INTENSITY BADGE ======= */
+  .intensity-badge {
+    display: inline-block; padding: 3px 8px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .i-low { background: rgba(52,211,153,0.15); color: var(--green); }
+  .i-med { background: rgba(251,146,60,0.15); color: var(--orange); }
+  .i-high { background: rgba(248,113,113,0.15); color: var(--red); }
+
+  /* ======= BOTTOM BAR ======= */
+  .bottom-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 10px;
+    padding: 12px 20px; border-top: 1px solid var(--border);
+    background: var(--bg3);
+  }
+  .quality-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+  .quality-pill {
+    padding: 4px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 600;
+    background: var(--surface2); border: 1px solid var(--border); color: var(--text2);
+    cursor: pointer; transition: all 0.15s;
+  }
+  .quality-pill:hover { border-color: var(--accent); color: var(--accent); }
+  .quality-pill.active { background: rgba(124,106,255,0.15); border-color: var(--accent); color: var(--accent2); }
+
+  /* ======= HISTORY ======= */
+  .history-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; }
+  .history-thumb {
+    aspect-ratio: 1; border-radius: var(--radius-sm); overflow: hidden;
+    border: 2px solid var(--border); cursor: pointer; transition: all 0.15s;
+    position: relative;
+  }
+  .history-thumb:hover { border-color: var(--accent); transform: scale(1.04); }
+  .history-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .history-thumb .del-btn {
+    position: absolute; top: 2px; right: 2px; width: 18px; height: 18px;
+    border-radius: 50%; background: rgba(248,113,113,0.9); color: #fff; font-size: 10px;
+    display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.15s;
+  }
+  .history-thumb:hover .del-btn { opacity: 1; }
+  .empty-history { color: var(--text3); font-size: 0.82rem; text-align: center; padding: 20px 0; }
+
+  /* ======= TOAST ======= */
+  #toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(80px);
+    background: var(--surface); border: 1px solid var(--border2);
+    padding: 12px 20px; border-radius: var(--radius);
+    font-size: 0.84rem; font-weight: 500; color: var(--text);
+    box-shadow: var(--shadow); z-index: 9999;
+    transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+    display: flex; align-items: center; gap: 10px;
+    white-space: nowrap;
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+  .toast-icon { font-size: 1rem; }
+
+  /* ======= LOADING SPINNER ======= */
+  .spinner {
+    width: 20px; height: 20px; border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ======= FOOTER ======= */
+  footer {
+    text-align: center; padding: 28px 20px;
+    border-top: 1px solid var(--border);
+    font-size: 0.8rem; color: var(--text3);
+    background: var(--bg2);
+  }
+  footer a { color: var(--accent2); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+  .heart { color: var(--pink); display: inline; }
+
+  /* ======= MOBILE ======= */
+  @media(max-width:600px) {
+    nav { padding: 0 16px; }
+    .hero { padding: 36px 16px 28px; }
+    .app-container { padding: 0 12px 40px; gap: 14px; }
+    .presets-grid { grid-template-columns: repeat(3, 1fr); }
+    .action-bar { flex-wrap: wrap; }
+    .nav-link { display: none; }
+  }
+
+  /* ======= SECTION DIVIDER ======= */
+  .section-divider { height: 1px; background: var(--border); margin: 16px 0; }
+
+  /* ======= COMPARE SPLIT ======= */
+  .compare-container { position: relative; overflow: hidden; display: none; }
+  .compare-container.active { display: block; }
+  .compare-after { position: absolute; top: 0; left: 0; width: 100%; height: 100%; clip-path: inset(0 50% 0 0); }
+  .compare-handle {
+    position: absolute; top: 0; bottom: 0; left: 50%;
+    width: 3px; background: #fff; cursor: ew-resize; z-index: 10;
+    transform: translateX(-50%);
+  }
+  .compare-handle::before {
+    content: ''; position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 32px; height: 32px; border-radius: 50%;
+    background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+  /* Animate in */
+  @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:none; } }
+  .panel { animation: fadeUp 0.4s ease both; }
+  .panel:nth-child(2) { animation-delay: 0.07s; }
+</style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav>
+  <div class="nav-logo">
+    <div class="nav-logo-dot"></div>
+    PixelReal
+    <span class="nav-badge">PRO</span>
+  </div>
+  <div class="nav-right">
+    <span class="theme-label" id="themeLabel">Dark</span>
+    <button class="theme-btn" id="themeToggle" title="Toggle theme" aria-label="Toggle theme"></button>
+  </div>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-eyebrow">
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><circle cx="6" cy="6" r="6"/></svg>
+    AI → Real Camera Look
+  </div>
+  <h1>Make AI Photos Look <span>Authentically Real</span></h1>
+  <p>Add film grain, lens imperfections, color grading & real-world artifacts. No more perfect AI giveaways.</p>
+</div>
+
+<!-- MAIN APP -->
+<div class="app-container">
+
+  <!-- LEFT: CONTROLS -->
+  <div>
+    <!-- UPLOAD -->
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-header">
+        <div class="panel-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Upload Image
+        </div>
+        <span id="imgSize" style="font-size:0.72rem;color:var(--text3)"></span>
+      </div>
+      <div class="panel-body">
+        <div class="upload-zone" id="dropZone">
+          <input type="file" accept="image/*" id="fileInput"/>
+          <div class="upload-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent2)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          </div>
+          <h3>Drop your AI image here</h3>
+          <p>PNG, JPG, WEBP — up to 20MB</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- PRESETS -->
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-header">
+        <div class="panel-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          Film Presets
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="presets-grid" id="presets">
+          <button class="preset-btn active" data-preset="none"><span class="preset-icon">⬜</span>None</button>
+          <button class="preset-btn" data-preset="kodak"><span class="preset-icon">🎞️</span>Kodak</button>
+          <button class="preset-btn" data-preset="fuji"><span class="preset-icon">🟩</span>Fuji</button>
+          <button class="preset-btn" data-preset="polaroid"><span class="preset-icon">📸</span>Polaroid</button>
+          <button class="preset-btn" data-preset="cinema"><span class="preset-icon">🎬</span>Cinema</button>
+          <button class="preset-btn" data-preset="lo-fi"><span class="preset-icon">📟</span>Lo-Fi</button>
+          <button class="preset-btn" data-preset="noir"><span class="preset-icon">🖤</span>Noir</button>
+          <button class="preset-btn" data-preset="vintage"><span class="preset-icon">🕰️</span>Vintage</button>
+          <button class="preset-btn" data-preset="golden"><span class="preset-icon">✨</span>Golden</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ADJUSTMENTS -->
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-header">
+        <div class="panel-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+          Adjustments
+        </div>
+        <button class="btn-secondary" id="resetBtn" style="padding:4px 10px;font-size:0.72rem;">Reset</button>
+      </div>
+      <div class="panel-body">
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="basic">Basic</button>
+          <button class="tab-btn" data-tab="film">Film</button>
+          <button class="tab-btn" data-tab="lens">Lens</button>
+          <button class="tab-btn" data-tab="color">Color</button>
+        </div>
+
+        <!-- BASIC -->
+        <div class="tab-content active" id="tab-basic">
+          <div class="slider-group"><div class="slider-label"><span>Brightness</span><span class="slider-val" id="v-brightness">0</span></div><input type="range" min="-100" max="100" value="0" id="s-brightness"/></div>
+          <div class="slider-group"><div class="slider-label"><span>Contrast</span><span class="slider-val" id="v-contrast">0</span></div><input type="range" min="-100" max="100" value="0" id="s-contrast"/></div>
+          <div class="slider-group"><div class="slider-label"><span>Saturation</span><span class="slider-val" id="v-saturation">0</span></div><input type="range" min="-100" max="100" value="0" id="s-saturation"/></div>
+          <div class="slider-group"><div class="slider-label"><span>Exposure</span><span class="slider-val" id="v-exposure">0</span></div><input type="range" min="-100" max="100" value="0" id="s-exposure"/></div>
+          <div class="slider-group"><div class="slider-label"><span>Highlights</span><span class="slider-val" id="v-highlights">0</span></div><input type="range" min="-100" max="100" value="0" id="s-highlights"/></div>
+          <div class="slider-group"><div class="slider-label"><span>Shadows</span><span class="slider-val" id="v-shadows">0</span></div><input type="range" min="-100" max="100" value="0" id="s-shadows"/></div>
+        </div>
+
+        <!-- FILM -->
+        <div class="tab-content" id="tab-film">
+          <div class="slider-group"><div class="slider-label"><span>Film Grain</span><span class="slider-val" id="v-grain">0</span></div><input type="range" min="0" max="100" value="0" id="s-grain"/></div>
+          <div class="slider-group"><div class="slider-label"><span>Grain Size</span><span class="slider-val" id="v-grainSize">2</span></div><input type="range" min="1" max="8" value="2" id="s-grainSize"/></div>
+          <div class="slider-group"><div class="slider-label"><span>Vignette</span><span class="slider-val" id="v-vignette">0</span></div><input type="range" min="0" max="100" value="0" id="s-vignette"/></div>
+          <div class="slider-group"><div class="slider-label"><span>Halation</span><span class="slider-val" id="v-halation">0</span></div><input type="range" min="0" max="100" value="0" id="s-halation"/></div>
+          <div class="slider-group"><div class="slider-label"><span>Light Leak</span><span class="slider-val" id="v-lightleak">0</span></div><input type="range" min="0" max="100" value="0" id="s-lightleak"/></div>
+          <div class="slider-group"><div class="slider-label"><span>Fade / Matte</span><span class="slider-val" id="v-fade">0</span></div><input type="range" min="0" max="100" value="0" id="s-fade"/></div>
+        </div>
+
+        <!-- LENS -->
+        <div class="tab-content" id="tab-lens">
+          <div class="slider-group"><div class="slider-label"><span>Blur (Defocus)</span><span class="slider-val" id="v-blur">0</span></div><input type="range" min="0" max="10" value="0" step="0.5" id="s-blur"/></div>
+          <div class="slider-group"><div class="slider-label"><span>Chromatic Aberration</span><span class="slider-val" id="v-chroma">0</span></div><input type="range" min="0" max="20" value="0" id="s-chroma"/></div>
+          <div class="slider-group"><div class="slider-label"><span>Lens Distortion</span><span class="slider-val" id="v-distortion">0</span></div><input type="range" min="-30" max="30" value="0" id="s-distortion"/></div>
+          <div class="slider-group"><div class="slider-label"><span>Sharpness Reduction</span><span class="slider-val" id="v-softness">0</span></div><input type="range" min="0" max="10" value="0" step="0.5" id="s-softness"/></div>
+        </div>
+
+        <!-- COLOR -->
+        <div class="tab-content" id="tab-color">
+          <div class="slider-group"><div class="slider-label"><span>Temperature (Warm/Cool)</span><span class="slider-val" id="v-temp">0</span></div><input type="range" min="-100" max="100" value="0" id="s-temp"/></div>
+          <div class="slider-group"><div class="slider-label"><span>Tint (Green/Magenta)</span><span class="slider-val" id="v-tint">0</span></div><input type="range" min="-100" max="100" value="0" id="s-tint"/></div>
+          <div class="slider-group"><div class="slider-label"><span>Shadow Tint (Blue)</span><span class="slider-val" id="v-shadowTint">0</span></div><input type="range" min="0" max="100" value="0" id="s-shadowTint"/></div>
+          <div class="slider-group"><div class="slider-label"><span>Highlight Tint (Orange)</span><span class="slider-val" id="v-highlightTint">0</span></div><input type="range" min="0" max="100" value="0" id="s-highlightTint"/></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OUTPUT QUALITY -->
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-header">
+        <div class="panel-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+          Export Quality
+        </div>
+        <span class="intensity-badge i-med" id="qualityLabel">High</span>
+      </div>
+      <div class="bottom-bar" style="border:none;padding:14px 20px;">
+        <div class="quality-pills">
+          <button class="quality-pill" data-q="0.6">Web</button>
+          <button class="quality-pill active" data-q="0.85">High</button>
+          <button class="quality-pill" data-q="0.95">Max</button>
+          <button class="quality-pill" data-q="1.0">Lossless</button>
+        </div>
+        <span style="font-size:0.72rem;color:var(--text3)" id="qNote">JPEG · 85%</span>
+      </div>
+    </div>
+
+    <!-- HISTORY -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.85"/></svg>
+          History
+        </div>
+        <button class="btn-secondary" id="clearHistory" style="padding:4px 10px;font-size:0.72rem;">Clear</button>
+      </div>
+      <div class="panel-body">
+        <div class="history-grid" id="historyGrid">
+          <div class="empty-history" style="grid-column:1/-1">No exports yet</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: CANVAS -->
+  <div class="canvas-panel">
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+          Preview
+        </div>
+        <div class="compare-row" style="margin:0">
+          <label style="font-size:0.78rem;color:var(--text2);margin-right:8px;">Compare</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="compareToggle"/>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="canvas-wrap" id="canvasWrap">
+        <div class="canvas-placeholder" id="placeholder">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          <p>Upload an image to begin</p>
+        </div>
+        <!-- Main processed canvas -->
+        <canvas id="mainCanvas" style="display:none;"></canvas>
+        <!-- Compare split overlay -->
+        <div class="compare-container" id="compareContainer">
+          <canvas id="originalCanvas"></canvas>
+          <div class="compare-after" id="compareAfter">
+            <canvas id="processedCanvas"></canvas>
+          </div>
+          <div class="compare-handle" id="compareHandle"></div>
+        </div>
+        <div class="canvas-overlay-info" id="overlayInfo">1:1 Preview</div>
+      </div>
+
+      <!-- ACTION BAR -->
+      <div class="action-bar">
+        <button class="btn-primary" id="applyBtn" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          Apply Effects
+        </button>
+        <button class="btn-secondary" id="downloadBtn" disabled>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Save
+        </button>
+        <button class="btn-secondary" id="copyBtn" disabled>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"><span class="toast-icon">✅</span><span id="toastMsg">Done!</span></div>
+
+<!-- FOOTER -->
+<footer>
+  <p>© 2025 Developed with <span class="heart">♥</span> by — <a href="https://lakshan.vercel.app/" target="_blank" rel="noopener">V.P.R. Lakshan Vidanapathirana</a></p>
+</footer>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+let originalImage = null;
+let currentQuality = 0.85;
+let processing = false;
+let compareActive = false;
+let compareX = 50; // percent
+
+const sliders = {
+  brightness: 0, contrast: 0, saturation: 0, exposure: 0,
+  highlights: 0, shadows: 0,
+  grain: 0, grainSize: 2, vignette: 0, halation: 0, lightleak: 0, fade: 0,
+  blur: 0, chroma: 0, distortion: 0, softness: 0,
+  temp: 0, tint: 0, shadowTint: 0, highlightTint: 0
+};
+
+const PRESETS = {
+  none: {},
+  kodak: { brightness: 5, contrast: 10, saturation: 8, grain: 18, grainSize: 2, vignette: 25, halation: 20, temp: 12, highlightTint: 15, fade: 5 },
+  fuji: { brightness: 3, contrast: 5, saturation: 12, grain: 12, grainSize: 2, vignette: 18, temp: -5, tint: -8, shadowTint: 10, fade: 8 },
+  polaroid: { brightness: 10, contrast: -8, saturation: -5, grain: 8, fade: 30, vignette: 40, temp: 8, highlightTint: 10, softness: 1 },
+  cinema: { contrast: 20, saturation: -10, grain: 22, grainSize: 3, vignette: 40, halation: 15, shadowTint: 20, temp: -8, fade: 12, chroma: 3 },
+  'lo-fi': { brightness: -5, contrast: 15, saturation: 25, grain: 40, grainSize: 3, vignette: 50, chroma: 8, fade: 10 },
+  noir: { saturation: -100, brightness: -5, contrast: 30, grain: 35, vignette: 60, fade: 5 },
+  vintage: { brightness: -3, contrast: -5, saturation: -20, grain: 25, vignette: 35, halation: 10, temp: 15, shadowTint: 15, fade: 25 },
+  golden: { brightness: 8, contrast: 5, saturation: 15, temp: 30, highlightTint: 30, grain: 10, vignette: 20, halation: 25 }
+};
+
+// ============================================================
+// THEME
+// ============================================================
+const html = document.documentElement;
+const themeToggle = document.getElementById('themeToggle');
+const themeLabel = document.getElementById('themeLabel');
+let isDark = true;
+
+// Load saved theme
+if (localStorage.getItem('pr-theme') === 'light') { isDark = false; html.setAttribute('data-theme','light'); themeLabel.textContent='Light'; }
+
+themeToggle.addEventListener('click', () => {
+  isDark = !isDark;
+  html.setAttribute('data-theme', isDark ? 'dark' : 'light');
+  themeLabel.textContent = isDark ? 'Dark' : 'Light';
+  localStorage.setItem('pr-theme', isDark ? 'dark' : 'light');
+});
+
+// ============================================================
+// TABS
+// ============================================================
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ============================================================
+// SLIDERS
+// ============================================================
+Object.keys(sliders).forEach(key => {
+  const slider = document.getElementById('s-' + key);
+  const val = document.getElementById('v-' + key);
+  if (!slider) return;
+  slider.addEventListener('input', () => {
+    sliders[key] = parseFloat(slider.value);
+    val.textContent = slider.value;
+    if (originalImage) scheduleRender();
+  });
+});
+
+function setSlider(key, value) {
+  const s = document.getElementById('s-' + key);
+  const v = document.getElementById('v-' + key);
+  if (s && v) { s.value = value; v.textContent = value; sliders[key] = parseFloat(value); }
+}
+
+// ============================================================
+// PRESETS
+// ============================================================
+document.querySelectorAll('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const preset = PRESETS[btn.dataset.preset] || {};
+    // Reset all sliders first
+    const defaults = { brightness:0,contrast:0,saturation:0,exposure:0,highlights:0,shadows:0,grain:0,grainSize:2,vignette:0,halation:0,lightleak:0,fade:0,blur:0,chroma:0,distortion:0,softness:0,temp:0,tint:0,shadowTint:0,highlightTint:0 };
+    const merged = { ...defaults, ...preset };
+    Object.keys(merged).forEach(k => setSlider(k, merged[k]));
+    if (originalImage) scheduleRender();
+  });
+});
+
+// ============================================================
+// RESET
+// ============================================================
+document.getElementById('resetBtn').addEventListener('click', () => {
+  const defaults = { brightness:0,contrast:0,saturation:0,exposure:0,highlights:0,shadows:0,grain:0,grainSize:2,vignette:0,halation:0,lightleak:0,fade:0,blur:0,chroma:0,distortion:0,softness:0,temp:0,tint:0,shadowTint:0,highlightTint:0 };
+  Object.keys(defaults).forEach(k => setSlider(k, defaults[k]));
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('[data-preset="none"]').classList.add('active');
+  if (originalImage) scheduleRender();
+  showToast('🔄 Reset to defaults');
+});
+
+// ============================================================
+// QUALITY
+// ============================================================
+document.querySelectorAll('.quality-pill').forEach(pill => {
+  pill.addEventListener('click', () => {
+    document.querySelectorAll('.quality-pill').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+    currentQuality = parseFloat(pill.dataset.q);
+    const labels = { '0.6': 'Web · 60%', '0.85': 'High · 85%', '0.95': 'Max · 95%', '1.0': 'Lossless PNG' };
+    const qlabels = { '0.6': ['Web', 'i-low'], '0.85': ['High', 'i-med'], '0.95': ['Max', 'i-high'], '1.0': ['Lossless', 'i-high'] };
+    document.getElementById('qNote').textContent = labels[pill.dataset.q] || '';
+    const [lbl, cls] = qlabels[pill.dataset.q] || ['High', 'i-med'];
+    const badge = document.getElementById('qualityLabel');
+    badge.textContent = lbl; badge.className = 'intensity-badge ' + cls;
+  });
+});
+
+// ============================================================
+// UPLOAD
+// ============================================================
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); const f = e.dataTransfer.files[0]; if (f && f.type.startsWith('image/')) loadFile(f); });
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); });
+
+function loadFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      originalImage = img;
+      document.getElementById('placeholder').style.display = 'none';
+      document.getElementById('mainCanvas').style.display = 'block';
+      document.getElementById('overlayInfo').style.display = 'block';
+      document.getElementById('applyBtn').disabled = false;
+      document.getElementById('downloadBtn').disabled = false;
+      document.getElementById('copyBtn').disabled = false;
+      document.getElementById('imgSize').textContent = img.width + '×' + img.height;
+      renderImage();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ============================================================
+// RENDER ENGINE
+// ============================================================
+let renderTimer = null;
+function scheduleRender() {
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(renderImage, 50);
+}
+
+function renderImage() {
+  if (!originalImage || processing) return;
+  processing = true;
+  const canvas = document.getElementById('mainCanvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = originalImage.width;
+  canvas.height = originalImage.height;
+
+  const W = canvas.width, H = canvas.height;
+
+  // Draw source with blur (softness/defocus)
+  ctx.save();
+  if (sliders.blur > 0 || sliders.softness > 0) {
+    const blurPx = sliders.blur + sliders.softness * 0.5;
+    ctx.filter = `blur(${blurPx}px)`;
+    ctx.drawImage(originalImage, 0, 0, W, H);
+    ctx.filter = 'none';
+  } else {
+    ctx.drawImage(originalImage, 0, 0, W, H);
+  }
+  ctx.restore();
+
+  // Chromatic aberration
+  if (sliders.chroma > 0) {
+    const off = Math.round(sliders.chroma * 0.6);
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = W; tempCanvas.height = H;
+    const tc = tempCanvas.getContext('2d');
+    tc.drawImage(canvas, 0, 0);
+    const imgData = tc.getImageData(0, 0, W, H);
+    const baseData = ctx.getImageData(0, 0, W, H);
+    const d = imgData.data, bd = baseData.data;
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const i = (y * W + x) * 4;
+        const rx = Math.min(W - 1, x + off), lx = Math.max(0, x - off);
+        const ri = (y * W + rx) * 4, li = (y * W + lx) * 4;
+        bd[i] = d[ri]; // red channel shifted right
+        bd[i + 2] = d[li + 2]; // blue channel shifted left
+      }
+    }
+    ctx.putImageData(baseData, 0, 0);
+  }
+
+  // Pixel-level processing
+  let imageData = ctx.getImageData(0, 0, W, H);
+  let data = imageData.data;
+
+  const bri = sliders.brightness / 100;
+  const con = sliders.contrast / 100;
+  const sat = sliders.saturation / 100;
+  const exp = sliders.exposure / 100;
+  const hi = sliders.highlights / 100;
+  const sh = sliders.shadows / 100;
+  const tmp = sliders.temp / 100;
+  const tnt = sliders.tint / 100;
+  const shadowT = sliders.shadowTint / 100;
+  const highlightT = sliders.highlightTint / 100;
+  const fadeAmt = sliders.fade / 100;
+  const halaAmt = sliders.halation / 100;
+
+  for (let i = 0; i < data.length; i += 4) {
+    let r = data[i] / 255, g = data[i+1] / 255, b = data[i+2] / 255;
+
+    // Exposure
+    r = Math.pow(r, 1 - exp * 0.5); g = Math.pow(g, 1 - exp * 0.5); b = Math.pow(b, 1 - exp * 0.5);
+
+    // Brightness
+    r += bri * 0.4; g += bri * 0.4; b += bri * 0.4;
+
+    // Contrast
+    r = (r - 0.5) * (1 + con) + 0.5;
+    g = (g - 0.5) * (1 + con) + 0.5;
+    b = (b - 0.5) * (1 + con) + 0.5;
+
+    // Saturation
+    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+    r = lum + (r - lum) * (1 + sat);
+    g = lum + (g - lum) * (1 + sat);
+    b = lum + (b - lum) * (1 + sat);
+
+    // Highlights/Shadows
+    const bright = (r + g + b) / 3;
+    if (bright > 0.5) { const t = (bright - 0.5) * 2; r += hi * t * 0.2; g += hi * t * 0.2; b += hi * t * 0.2; }
+    if (bright < 0.5) { const t = (0.5 - bright) * 2; r += sh * t * 0.2; g += sh * t * 0.2; b += sh * t * 0.2; }
+
+    // Temperature (warm = more red/yellow, cool = more blue)
+    r += tmp * 0.15; g += tmp * 0.05; b -= tmp * 0.15;
+
+    // Tint (green <-> magenta)
+    g += tnt * 0.12; r -= tnt * 0.06; b -= tnt * 0.06;
+
+    // Shadow tint (blue in shadows)
+    if (bright < 0.4) { b += shadowT * 0.15 * (1 - bright / 0.4); }
+
+    // Highlight tint (orange in highlights)
+    if (bright > 0.6) { r += highlightT * 0.15 * ((bright - 0.6) / 0.4); g += highlightT * 0.07 * ((bright - 0.6) / 0.4); }
+
+    // Halation (red glow in highlights)
+    if (bright > 0.7 && halaAmt > 0) { r += halaAmt * 0.2 * ((bright - 0.7) / 0.3); g += halaAmt * 0.05 * ((bright - 0.7) / 0.3); }
+
+    // Fade / matte lift
+    r = r * (1 - fadeAmt * 0.3) + fadeAmt * 0.08;
+    g = g * (1 - fadeAmt * 0.3) + fadeAmt * 0.06;
+    b = b * (1 - fadeAmt * 0.3) + fadeAmt * 0.05;
+
+    data[i]   = Math.min(255, Math.max(0, r * 255));
+    data[i+1] = Math.min(255, Math.max(0, g * 255));
+    data[i+2] = Math.min(255, Math.max(0, b * 255));
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+
+  // Film Grain
+  if (sliders.grain > 0) {
+    const grainCanvas = document.createElement('canvas');
+    grainCanvas.width = W; grainCanvas.height = H;
+    const gc = grainCanvas.getContext('2d');
+    const grainData = gc.createImageData(W, H);
+    const gd = grainData.data;
+    const intensity = sliders.grain / 100;
+    const sz = sliders.grainSize;
+    for (let y = 0; y < H; y += sz) {
+      for (let x = 0; x < W; x += sz) {
+        const n = (Math.random() - 0.5) * 255 * intensity * 1.2;
+        for (let dy = 0; dy < sz && y+dy < H; dy++) {
+          for (let dx = 0; dx < sz && x+dx < W; dx++) {
+            const i2 = ((y+dy) * W + (x+dx)) * 4;
+            const gv = Math.min(255, Math.max(0, 128 + n));
+            gd[i2] = gd[i2+1] = gd[i2+2] = gv;
+            gd[i2+3] = Math.round(intensity * 80);
+          }
+        }
+      }
+    }
+    gc.putImageData(grainData, 0, 0);
+    ctx.globalCompositeOperation = 'soft-light';
+    ctx.drawImage(grainCanvas, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  // Vignette
+  if (sliders.vignette > 0) {
+    const v = sliders.vignette / 100;
+    const grad = ctx.createRadialGradient(W/2, H/2, Math.min(W,H)*0.3, W/2, H/2, Math.max(W,H)*0.75);
+    grad.addColorStop(0, 'rgba(0,0,0,0)');
+    grad.addColorStop(1, `rgba(0,0,0,${v * 0.8})`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // Light Leak
+  if (sliders.lightleak > 0) {
+    const ll = sliders.lightleak / 100;
+    const llGrad = ctx.createLinearGradient(0, 0, W * 0.4, H * 0.3);
+    llGrad.addColorStop(0, `rgba(255,180,80,${ll * 0.35})`);
+    llGrad.addColorStop(0.5, `rgba(255,120,60,${ll * 0.15})`);
+    llGrad.addColorStop(1, 'rgba(255,100,50,0)');
+    ctx.globalCompositeOperation = 'screen';
+    ctx.fillStyle = llGrad;
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  // Update compare canvases if active
+  if (compareActive) updateCompare();
+
+  processing = false;
+}
+
+// ============================================================
+// COMPARE MODE
+// ============================================================
+document.getElementById('compareToggle').addEventListener('change', function() {
+  compareActive = this.checked;
+  const wrap = document.getElementById('canvasWrap');
+  const main = document.getElementById('mainCanvas');
+  const comp = document.getElementById('compareContainer');
+
+  if (compareActive && originalImage) {
+    main.style.display = 'none';
+    comp.classList.add('active');
+    updateCompare();
+    initDrag();
+  } else {
+    main.style.display = 'block';
+    comp.classList.remove('active');
+  }
+});
+
+function updateCompare() {
+  if (!originalImage) return;
+  const oc = document.getElementById('originalCanvas');
+  const pc = document.getElementById('processedCanvas');
+  const mc = document.getElementById('mainCanvas');
+  oc.width = pc.width = originalImage.width;
+  oc.height = pc.height = originalImage.height;
+  oc.style.maxWidth = pc.style.maxWidth = '100%';
+  oc.style.display = pc.style.display = 'block';
+  oc.getContext('2d').drawImage(originalImage, 0, 0);
+  pc.getContext('2d').drawImage(mc, 0, 0);
+}
+
+function initDrag() {
+  const handle = document.getElementById('compareHandle');
+  const after = document.getElementById('compareAfter');
+  let dragging = false;
+  handle.addEventListener('mousedown', () => dragging = true);
+  handle.addEventListener('touchstart', () => dragging = true, { passive: true });
+  document.addEventListener('mouseup', () => dragging = false);
+  document.addEventListener('touchend', () => dragging = false);
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const wrap = document.getElementById('compareContainer');
+    const rect = wrap.getBoundingClientRect();
+    const pct = Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100));
+    handle.style.left = pct + '%';
+    after.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
+  });
+  document.addEventListener('touchmove', e => {
+    if (!dragging) return;
+    const wrap = document.getElementById('compareContainer');
+    const rect = wrap.getBoundingClientRect();
+    const pct = Math.min(100, Math.max(0, ((e.touches[0].clientX - rect.left) / rect.width) * 100));
+    handle.style.left = pct + '%';
+    after.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
+  }, { passive: true });
+}
+
+// ============================================================
+// APPLY BUTTON (visual feedback)
+// ============================================================
+document.getElementById('applyBtn').addEventListener('click', () => {
+  if (!originalImage) return;
+  const btn = document.getElementById('applyBtn');
+  btn.innerHTML = '<div class="spinner"></div> Processing…';
+  btn.disabled = true;
+  setTimeout(() => {
+    renderImage();
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Apply Effects';
+    btn.disabled = false;
+    showToast('✅ Effects applied');
+    saveToHistory();
+  }, 200);
+});
+
+// ============================================================
+// DOWNLOAD
+// ============================================================
+document.getElementById('downloadBtn').addEventListener('click', download);
+function download() {
+  const canvas = document.getElementById('mainCanvas');
+  if (!canvas.width) return;
+  const isLossless = currentQuality >= 1.0;
+  const url = isLossless ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', currentQuality);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `pixelreal-${Date.now()}.${isLossless ? 'png' : 'jpg'}`;
+  a.click();
+  showToast('📥 Image downloaded');
+  saveToHistory();
+}
+
+// ============================================================
+// COPY TO CLIPBOARD
+// ============================================================
+document.getElementById('copyBtn').addEventListener('click', async () => {
+  const canvas = document.getElementById('mainCanvas');
+  if (!canvas.width) return;
+  try {
+    canvas.toBlob(async blob => {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      showToast('📋 Copied to clipboard');
+    });
+  } catch { showToast('⚠️ Copy not supported in this browser'); }
+});
+
+// ============================================================
+// HISTORY (localStorage)
+// ============================================================
+function saveToHistory() {
+  const canvas = document.getElementById('mainCanvas');
+  if (!canvas.width) return;
+  const thumbCanvas = document.createElement('canvas');
+  thumbCanvas.width = 120; thumbCanvas.height = 120;
+  thumbCanvas.getContext('2d').drawImage(canvas, 0, 0, 120, 120);
+  const thumb = thumbCanvas.toDataURL('image/jpeg', 0.6);
+  let history = getHistory();
+  history.unshift({ id: Date.now(), thumb, time: new Date().toLocaleTimeString() });
+  if (history.length > 12) history = history.slice(0, 12);
+  localStorage.setItem('pr-history', JSON.stringify(history));
+  renderHistory();
+}
+
+function getHistory() { try { return JSON.parse(localStorage.getItem('pr-history') || '[]'); } catch { return []; } }
+
+function renderHistory() {
+  const grid = document.getElementById('historyGrid');
+  const history = getHistory();
+  if (!history.length) { grid.innerHTML = '<div class="empty-history" style="grid-column:1/-1">No exports yet</div>'; return; }
+  grid.innerHTML = history.map(item => `
+    <div class="history-thumb" title="${item.time}" data-id="${item.id}">
+      <img src="${item.thumb}" alt="Export ${item.time}"/>
+      <button class="del-btn" data-del="${item.id}">✕</button>
+    </div>
+  `).join('');
+  grid.querySelectorAll('.del-btn').forEach(btn => {
+    btn.addEventListener('click', e => { e.stopPropagation(); deleteHistory(parseInt(btn.dataset.del)); });
+  });
+}
+
+function deleteHistory(id) {
+  let h = getHistory().filter(x => x.id !== id);
+  localStorage.setItem('pr-history', JSON.stringify(h));
+  renderHistory();
+}
+
+document.getElementById('clearHistory').addEventListener('click', () => {
+  localStorage.removeItem('pr-history');
+  renderHistory();
+  showToast('🗑️ History cleared');
+});
+
+renderHistory();
+
+// ============================================================
+// TOAST
+// ============================================================
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ============================================================
+// PASTE FROM CLIPBOARD
+// ============================================================
+document.addEventListener('paste', e => {
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      const file = item.getAsFile();
+      if (file) { loadFile(file); showToast('📋 Image pasted from clipboard'); break; }
+    }
+  }
+});
+
+// ============================================================
+// KEYBOARD SHORTCUTS
+// ============================================================
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey) {
+    if (e.key === 's') { e.preventDefault(); download(); }
+    if (e.key === 'z') { e.preventDefault(); document.getElementById('resetBtn').click(); }
+  }
+});
+</script>
+</body>
+</html>
